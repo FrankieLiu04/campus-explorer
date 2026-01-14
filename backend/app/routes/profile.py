@@ -57,15 +57,23 @@ def update_profile():
             user.avatar_url = f'/static/avatars/{filename}'
     else:
         # Handle regular JSON data
-        data = request.get_json()
+        data = request.get_json(silent=True)
+        if not data:
+            return jsonify({'error': 'Missing request body'}), 400
         if 'avatar_url' in data:
-          user.avatar_url = data.get('avatar_url')
+            user.avatar_url = data.get('avatar_url')
 
     # Update other profile fields from 'data' which is either form or json
     user.first_name = data.get('first_name', user.first_name)
     user.last_name = data.get('last_name', user.last_name)
-    user.age = data.get('age', user.age)
-    if data.get('age') == '': user.age = None # Handle empty string for age
+    if 'age' in data:
+        if data.get('age') in (None, ''):
+            user.age = None
+        else:
+            try:
+                user.age = int(data.get('age'))
+            except (TypeError, ValueError):
+                return jsonify({'error': 'Invalid age'}), 400
     user.gender = data.get('gender', user.gender)
     user.bio = data.get('bio', user.bio)
     user.phone = data.get('phone', user.phone)

@@ -1,19 +1,15 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.models.map_marker import MapMarker
 from app import db
 import requests
 import os
+import time
 
 map_bp = Blueprint('map', __name__)
 
-import logging
-
-# 配置日志
-logging.basicConfig(level=logging.INFO)
-
 # OpenRouteService API配置
-ORS_API_KEY = os.getenv('ORS_API_KEY', 'eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6ImM1MTJhOTEyM2Y3MTQzMzM4NGIyODAwYzUzZmJmMDRmIiwiaCI6Im11cm11cjY0In0=')  # 免费API密钥
+ORS_API_KEY = os.getenv('ORS_API_KEY')
 ORS_BASE_URL = 'https://api.openrouteservice.org'
 
 @map_bp.route('/markers', methods=['GET'])
@@ -27,7 +23,13 @@ def create_marker():
     data = request.get_json()
     user_id = get_jwt_identity()
     
-    if not data or not data.get('title') or not data.get('latitude') or not data.get('longitude'):
+    if (
+        not data
+        or not isinstance(data.get("title"), str)
+        or not data.get("title").strip()
+        or data.get("latitude") is None
+        or data.get("longitude") is None
+    ):
         return jsonify({'error': 'Missing required fields'}), 400
     
     marker = MapMarker(
@@ -67,6 +69,9 @@ def get_route():
     
     if not data or not data.get('start') or not data.get('end'):
         return jsonify({'error': 'Missing start or end coordinates'}), 400
+
+    if not ORS_API_KEY:
+        return jsonify({'error': 'Route service not configured'}), 503
     
     try:
         start = data['start']
@@ -90,8 +95,7 @@ def get_route():
             'instructions': 'true'
         }
         
-        logging.info(f"Sending request to ORS API. URL: {ORS_BASE_URL}/v2/directions/driving-car/geojson, Payload: {payload}")
-
+        request_started = time.time()
         response = requests.post(
             f'{ORS_BASE_URL}/v2/directions/driving-car/geojson',
             headers=headers,
@@ -99,7 +103,8 @@ def get_route():
             timeout=10
         )
         
-        logging.info(f"Received response from ORS API. Status: {response.status_code}, Response: {response.text}")
+        elapsed_ms = round((time.time() - request_started) * 1000, 2)
+        current_app.logger.info("ors_response", extra={"status": response.status_code, "duration_ms": elapsed_ms})
 
         if response.status_code == 200:
             route_data = response.json()

@@ -138,6 +138,13 @@ npm run dev
 
 The frontend development server will start at `http://localhost:3000`
 
+## Production Notes
+
+- Backend config is environment-driven. See `.env.example`.
+- Health endpoints:
+  - `GET /healthz` - liveness
+  - `GET /readyz` - readiness (checks DB connectivity)
+
 ## API Endpoints
 
 ### Authentication
